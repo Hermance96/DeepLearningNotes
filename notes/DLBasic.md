@@ -5,6 +5,8 @@
     * [浅层神经网络](#浅层神经网络)
     * [深层神经网络](#深层神经网络)
 2. [深层神经网络优化](#深层神经网络优化)
+    * [优化方法](#实用优化方法)
+    * [优化算法](#优化算法)
 3. [卷积神经网络 CNN](#卷积神经网络)
     * [边缘检测](#边缘检测)
     * [深度卷积神经网络](#深度卷积神经网络)
@@ -192,7 +194,7 @@
 
 5. 梯度消失 vanishing 和梯度爆炸 exploding 问题
 * 梯度以指数级快速减小/增加，就是梯度消失/爆炸
-* 主要取决于权重W的设计，在网咯层数较多的情况下，W略大于1，就会容易出现梯度爆炸，W略小于1，就会容易出现梯度消失
+* 主要取决于权重W的设计，在网络层数较多的情况下，W略大于1，就会容易出现梯度爆炸，W略小于1，就会容易出现梯度消失
 * 通过初始化抑制W的快速减小/增加：
     * Xavier初始化，初始化W时，根据W的形状，初始化随机数，然后乘上 sqrt(1/n)，n是上一层的单元数，也就是输入单元数。适用于tanh激活函数
     * He初始化，乘上 sqrt(2/n)，适用于ReLU激活函数
@@ -207,6 +209,111 @@
     * 梯度检验只用于debug，不用于训练
     * 如果采用了L2正则化，那在计算梯度时，需要把正则化的项考虑进来
     * 梯度检验不能和随机失活一起使用。如果采用了dropout正则化，需要先关闭dropout，然后进行梯度检测，检测无误后再打开dropout
+
+### 优化算法
+1. 梯度下降
+* batch，批梯度下降。
+    * 是之前一直使用的方法，必须对整个训练集进行处理，然后才能进行一次梯度下降，每次更新参数都应用了完整的训练集数据。
+    * 代价函数J下降的曲线平滑；
+    * 迭代时间长，训练慢，只适用于规模不大的数据集（2000以下）
+* mini-batch，小批量梯度下降
+    * 先对数据集分批，批的大小称为 batch_size，分批后，数据集X = [X(1) X(2) ... X(m)] 就变为 X = [X{1} ... X{#batches}]
+    >
+        for t in (1, #batches):
+            // FP on X{t}
+            Z[1] = W[1]X{t} + b[1]
+            A[1] = g[1](Z[1])
+            ...
+            A[L] = g[L](Z[L])
+            // cost function
+            J{t} = 1/batch_size * sum(L(yhat, y)) + lamdb/(2*batch_size) * sum(Forbenius(W))
+            compute grads;
+            update parameters W[1], b[1], ..., W[L], b[L]
+    * 使用小批量梯度下降，每对一批进行处理，都能更新一次参数。所以在一个 epoch 后，也就是一次完整的遍历后，可以对参数进行 #batches 次更新。
+    * 成本函数J，受到分批训练的影响，会出现噪音，虽然总体还是下降的趋势。
+    * 小批量梯度下降，一方面相比批梯度下降，加快了学习速度，另一方面相比 SGD，保留了向量化带来的好处。所以应用十分广泛，需要挑选批量的规模，常见的 batch_size 有：64，128，256，512，选择时还需要考虑到和 CPU/GPU 内存的匹配。
+* StochasticGD，随机梯度下降，batch_size=1
+    * SGD 永远不会收敛，最后会在最小值附近波动
+    * 相当于一个batch内只有一个样本，这样就丢失了向量化带来的加速
+
+2. 指数平均（移动）加权
+* exponentially weighted (moving) average
+* 比如对于一批数据 (x1, x2, ..., xt)
+>
+    v0 = 0;
+    v1 = beta*v0 + (1-beta)*x1
+    ...
+    vt = beta*v(t-1) + (1-beta)*xt
+* vt可以看做是，xt 及其前面的数据，共 (1/(1-beta)) 个数据的加权平均
+    * 展开可以得到，vt多个x的和，xt的系数是(1-beta)，x(t-1)的系数是(1-beta)\*beta，x(t-2)的系数是(1-beta)\*beta^2
+    * 所以各项系数呈指数衰减
+* 指数移动平均计算起来更为高效，其实是对一个范围内平均数的一种估计
+    * 如果beta取得过小，那么v是较少天数的平均，可以更为灵敏地反应x的变化，波动也更大
+    * 如果beta取得过大，那么v是较多天数的平均，曲线平滑，但是对x的变化更迟钝，反应出来的曲线整体滞后
+* 偏差修正 bias correction
+    * 对于起始阶段，发现v取值过小
+    * 所以增加偏差修正
+    >
+        vt = vt / (1 - beta^t)
+    * 适当增大了起始的v，对于后面的v也基本上没有影响
+
+3. GD with Momentum 动量梯度下降法
+>
+    for iteration t:
+    compute grads dW, db;
+    v(dW) = beta*v(dW) + (1-beta)*dW
+    v(db) = beta*v(db) + (1-beta)*db
+    // update params
+    W = W - v(dW)
+    b = b - v(db)
+* 采取指数平均加权的形式，计算出v用于参数更新，相比简单的梯度下降，降低了抵达最小值路径上的波动，加快了学习速度。
+* 一般不用进行偏差修正。偏差只会影响初始阶段，也就是大概10次迭代。
+* 命名含义理解：如果将成本函数想象成碗，小球从碗口向下滚动，直到碗底，那么v理解为速度，beta相当于是一个摩擦力，而grads就是加速度。
+
+4. RMSprop Propagation 均方根传播
+>
+    for iteration t:
+    compute grads dW, db;
+    s(dW) = beta*s(dW) + (1-beta)*dW^2
+    s(db) = beta*s(db) + (1-beta)*db^2
+    // update params
+    W = W - alpha * dW / (epsilon+sqrt(s(dW)))
+    b = b - alpha * db / (epsilon+sqrt(s(db)))
+* epsilon是一个很小的值，避免分母为0的情况；
+* 观察发现，如果在维度b上波动较大，那么db大导致s(db)大，那么对b的更新量就更小；
+* RMSprop 降低了在一些维度上的波动，从而允许采取更大的学习率 alpha，加快学习速度。
+
+5. Adam 自适应矩估计
+>
+    v(dW)=0, v(db)=0, s(dW)=0, s(db)=0;
+    for iteration t:
+    compute grads dW, db;
+    v(dW) = beta1*v(dW) + (1-beta1)*dW
+    v(db) = beta1*v(db) + (1-beta1)*db
+    s(dW) = beta2*s(dW) + (1-beta2)*dW^2
+    s(db) = beta2*s(db) + (1-beta2)*db^2
+    // bias correction
+    vc(dW) = v(dW)/(1-beta1^t)
+    vc(db) = v(db)/(1-beta1^t)
+    sc(dW) = s(dW)/(1-beta2^t)
+    sc(db) = s(db)/(1-beta2^t)
+    // update params
+    W = W - alpha * vc(dW) / (epsilon+sqrt(sc(dW)))
+    b = b - alpha * vc(db) / (epsilon+sqrt(sc(db)))
+* 结合了 momentum 和 RMSprop；
+* beta1默认取值为0.9，beta2=0.999，epsilon=10^-8；
+* 调节超参数，学习率 alpha 即可。
+
+6. 学习率衰减
+* 学习率初期较大，保证梯度下降的速度；
+* 随着模型开始收敛，采取更小的学习率，可以让算法在最小值附近很小的区域内波动，有利于接近最优解。
+>
+    // 常用方法
+    alpha = alpha0 / (1 + decayRate * #epochs)
+    // 指数衰减
+    alpha = alpha0 * 0.95^(#epochs)
+    // 其他
+    alpha = K * alpha0 / sqrt(#epochs)
 
 
 ## 卷积神经网络
