@@ -146,11 +146,12 @@ YOLOv3
 ## 实验
 1. YOLO官网[链接](https://pjreddie.com/darknet/yolo/)
 2. YOLO官方开源代码[链接](https://github.com/pjreddie/darknet.git)
-3. 用tf和keras实现YOLOv2[YAD2K](https://github.com/allanzelener/YAD2K.git)
-4. pytorch实现YOLOv3[链接](https://github.com/ayooshkathuria/YOLO_v3_tutorial_from_scratch.git)
-5. keras实现YOLOv3[链接](https://github.com/experiencor/keras-yolo3.git)
+3. 用tf实现YOLOv1[链接](https://github.com/gliese581gg/YOLO_tensorflow.git)
+4. 用tf和keras实现YOLOv2[YAD2K](https://github.com/allanzelener/YAD2K.git)
+5. pytorch实现YOLOv3[链接](https://github.com/ayooshkathuria/YOLO_v3_tutorial_from_scratch.git)
+6. keras实现YOLOv3[链接](https://github.com/experiencor/keras-yolo3.git)
 
-### [5] keras-yolo3
+### [6] keras-yolo3
 #### yolo3_one_file_to_detect_them_all.py
     文件加载预训练参数，建立 YOLOv3 模型，并用模型进行预测。
 1. 加载模型
@@ -180,3 +181,84 @@ YOLOv3
 - 最终测试结果如下
 
 <img src="imgs/yolo_exp1.png" width="400">
+
+### [3] tf-yolo1
+    yolov3 借鉴其他算法进行了更新，综合性更强，因此考虑先看v3的优化涉及到的论文，实践方面还是从v1开始。
+#### YOLO_small_tf.py
+    创建模型，直接加载YOLO_small的参数，输入图片获得预测结果。
+* 创建类 YOLO_TF
+* 属性包括
+    * 用于预测的输入输出相关：fromfile, fromfolder, tofile_img, tofile_txt, imshow, filewrite_img, file_write_txt, disp_console
+    * 为模型加载的参数文件：weights_file
+    * 模型超参数：alpha（激活函数leakyrelu的参数）, threshold（分类概率过滤阈值）, iou_threshold, num_class, num_box, grid_size, classes, w_img, h_img
+* 类的方法有
+    * \_\_init\_\_(self, argvs)
+        * argv_parser(self, argvs)
+        * build_network(self)
+            * conv_layer(self, idx, inputs, filters, size, stride)
+            * pooling_layer(self, idx, inputs, size, stride)
+            * fc_layer(self, idx, inputs, hiddens, flat, linear)
+        * detect_from_file(self, filename)
+            * detect_from_cvmat(self, img)
+                * interpret_output(self, output)
+                * show_results(self, img, results)
+1. 模型创建
+* 创建卷积层，conv_layer(self, idx, inputs, filters, size, stride)
+    * idx是层的序号，从1开始排列创建
+    * 以上一层的输出作为inputs，第一层的inputs是用占位符表示的x，代表输入模型的图像，其形状为 (448, 448, 3)
+    * filters 是本层过滤器的数量，size 是过滤器的维度，stride 是卷积的步长
+    * 创建卷积层：初始化权重和偏差，填充输入维度，调用tf.nn.conv2d创建卷积层，加上偏差，最后应用激活函数输出。
+    > 
+        // 生成张量，传入参数，形状、均值和标准差
+        tf.truncated_normal(shape, mean, stddev)
+        // 创建卷积层
+        tf.nn.conv2d(input, filters, strides, padding, 
+                data_format='NHWC', dilations=None, name=None)
+        // 加上偏差
+        tf.nn.bias_add(conv_layer, bias)
+        // 应用激活函数
+        tf.nn.relu(conv_layer)
+        /* 
+        注意这里 tf 对每一个 input 维度使用一个单独的 stride 参数
+            [batch, input_height, input_width, input_channels]
+        一般取的是 [1, s, s, 1]
+        */
+* 创建池化层，pooling_layer(self, idx, inputs, size, stride)
+    > 
+        tf.nn.max_pool(input, ksize, strides, padding,
+                    data_format=None, name=None)
+        // ksize是过滤器大小，strides是步长
+        // 同上，对应input张量的四个维度，一般第一个和第四个都取1
+* 创建全连接层，fc_layer(self, idx, inputs, hiddens, flat=False, linear=False)
+    * 全连接层通过 tf.add, tf.matmul 操作计算得出。
+* 读取下载完的参数，tf.train.Saver().restore()
+
+2. 图片读取
+* cv2.imread(path, flags)，path 指定路径，flags 指定加载方式
+* cv2.resize(src, dsize[])，改变图像尺寸，这里调整为YOLO的输入格式，也就是 448 x 448
+* cv2.cvtColor(src, cv2.COLOR_BGR2RGB)，转换色彩空间为RGB
+* np.asarray()，转换为 ndarray 的形式
+
+3. 进行预测
+* 传入处理完的图片，运行 self.fc_32
+* interpret_output(self, output)
+    * 拆分 output，读取信息；
+    * 重新计算边框的坐标；
+    * 过滤掉置信低于 threshold 的边框；
+    * 剩下的按照置信从高到低排列，过滤掉和已有边框交并比高于 iou_threshold 的边框；
+    * 最后输出结果 result (class_probs, x, y, w, h, confidence)
+* show_results(self, img, results)
+    * 提取结果中的信息；
+    > 
+        // 作图：通过致命对角线的顶点画长方形
+        cv2.rectangle(image, point1, point2, color, thickness, lineType, shift)
+        // 填写标签
+        cv2.putText(照片, 添加的文字, 左上角坐标, 字体, 字体大小, 颜色, 字体粗细)
+* 如果需要保存预测图片（filewrite_img=True），调用 cv2.imwrite() 保存到指定位置。
+
+4. 预测结果  
+<img src="imgs/yolo_t1.jpg" width="400">
+<img src="imgs/yolo_t2.jpg" width="400">
+
+* 预测结果类别比较准确，边框的定位误差稍大一些；
+* 图2中多个物体重叠在一个格子内，不能检测出多个。
