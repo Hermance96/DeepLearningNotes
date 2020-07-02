@@ -8,3 +8,4 @@
 
 ## 物体检测论文
 * [YOLO](notes/yolo.md)
+* [R-CNN](notes.r-cnn.md)
