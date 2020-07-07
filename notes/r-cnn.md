@@ -119,6 +119,7 @@
     * 用于检测时，直接输出先验框应该采取的变换量（平移量+缩放尺度），用于修正先验框。
 
 ### Faster R-CNN with VGG16
+[参考解析](https://zhuanlan.zhihu.com/p/31426458)
 #### 网络结构
 
 <img src="imgs/rcnn4.jpg" width="720">
@@ -166,3 +167,26 @@
 2. 用 RPN 提出的候选区域，训练 Fast R-CNN 检测网络，该检测网络初始化也是采取 ImageNet 预训练参数；
 3. 用2训练好的参数，去初始化 RPN 训练的卷积网络，然后冻结其他参数，对 RPN 独有的部分再次进行训练，此时 RPN 和 Fast R-CNN 就共享了卷积层参数。
 4. 最后，微调 Fast R-CNN 的全连接层。
+
+## Faster R-CNN in PyTorch
+[github链接](https://github.com/facebookresearch/detectron2.git)  
+[PyTorch官方代码](https://pytorch.org/docs/stable/_modules/torchvision/models/detection/faster_rcnn.html#fasterrcnn_resnet50_fpn)  
+1. FasterRCNN 首先继承自 GeneralizedRCNN，主要接口有
+    * transfrom: 标准化图片像素值，缩放 orginal_img_size 到 img_size
+    > 
+        imgs, targets = transform(imgs, targets)
+    * backbone: 主要的卷积部分，常采用VGG, ResNet等常见的CNN模型，输出特征图
+    > 
+        features = backbone(imgs.tensors)
+    * rpn: 产生区域提议的卷积网络
+    > 
+        proposals, proposal_losses = rpn(imgs, features, targets)
+    * roi_head: roi池化层 + 分类
+    > 
+        detections, detector_losses = roi_heads(features, proposals, img_sizes, targets)
+    * postprocess: 进行非最大值抑制，将边界框映射回原图
+    > 
+        detections = postprocess(detections, img_sizes, original_img_sizes)
+2. FasterRCNN
+    * 输入张量为 [C, H, W]
+    * 训练过程还需要给出对应的 targets: {boxes, labels}，边界框表示为 (x1, y1, x2, y2)，是左上角和右下角的坐标。
