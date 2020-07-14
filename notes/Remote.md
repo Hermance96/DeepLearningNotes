@@ -40,6 +40,35 @@
     * exit
     * 一段时间没有操作自动退出 -> Broken pipeline
 
+* 在容器中安装 SSH
+>
+    // 安装工具包
+    apt-get update
+    apt-get install ssh
+    apt-get install net-tools
+    // 可能不需要做的几步
+    mkdir -p /var/run/sshd
+    /usr/sbin/sshd -D &
+    ssh-keygen -t rsa
+    // 启动SSH服务
+    /etc/init.d/ssh (re)start
+    // 查看网络状态
+    netstat -an
+    
+    // 修改配置文件
+    vi /etc/ssh/sshd_config
+        PermitRootLogin yes
+    
+    // 修改容器的root密码
+    passwd
+        // 输入容器的root密码
+    
+    // 在远程机上通过SSH连接容器
+    // 查看容器IP地址
+    docker inspect --format='{{.NetworkSettings.IPAddress}}' containerId
+    ssh root@containerIpAddress
+        // enter root pwd
+
 ## Docker
 * 查看镜像，docker images
 * 查看（历史）容器，docker ps (-a)

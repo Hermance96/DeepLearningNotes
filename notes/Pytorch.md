@@ -111,3 +111,31 @@
 6. 在 gpu 上训练时
     * 在 gpu 上建立模型，net.to(device)
     * 每次读取的 inputs, labels 也都需要调用 .to() 发送到 gpu 上
+
+### 迁移学习 transfer-learning
+* 解决 Kaggle 的一个多分类问题，识别狗的种类，共 120 种；
+1. 加载数据集
+    * 下载好数据集，上传到 datasets/dog_breed
+    * 处理标签 labels.csv，读取并增加 label_idx 属性，将品种映射为数字
+    * 定义数据集 DogDataset(Dataset)
+    * 分别制定对训练集和验证集进行的变换 tansforms （使用数据增强）
+    * 使用 sklearn.model_selection.StratifiedShuffleSplit 划分训练集和验证集，比例为 9:1，最终样本数分别为 9199，1023
+    * DataLoader 加载训练集和验证集
+2. 定义网络
+    * 直接加载 torchvision.models.resnet50 已经训练好的参数
+    * 冻结参数，设置 model.parameters() 中，所有参数的属性 requires_grad=False
+    * 重新设置全连接层，替换 model.fc，输入维度不变，输出维度是总类别 120
+3. 设置训练参数
+    * 设置损失函数，nn.CrossEntropyLoss()
+    * 设置优化器，比如 torch.optim.Adam()，注意这里只传入 model.fc 的参数
+    * 小批量训练，batch_size=512
+    * 轮数暂定为 10 轮
+4. 训练常规参数
+    * 开始 epochs 循环：
+        * 分别在训练集上 train()，在验证集上 test()
+        * 训练时计算损失函数，用优化器更新参数
+        * 测试时，需要对分类正确的预测进行计数，计算准确率
+5. 总结
+    * 观察模型表现，大约在训练的第8轮，验证集准确率达到最高，为 81% 左右
+
+<!-- 微调一个预训练的 Mask R-CNN 模型，使用 Penn-Fudan 的行人检测与分割数据集，含有170张图片，345个行人； -->

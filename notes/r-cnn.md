@@ -187,6 +187,40 @@
     * postprocess: 进行非最大值抑制，将边界框映射回原图
     > 
         detections = postprocess(detections, img_sizes, original_img_sizes)
-2. FasterRCNN
-    * 输入张量为 [C, H, W]
-    * 训练过程还需要给出对应的 targets: {boxes, labels}，边界框表示为 (x1, y1, x2, y2)，是左上角和右下角的坐标。
+2. FasterRCNN 基本信息
+    * inputs & outputs
+        * 输入图片表示为张量的形式： [C, H, W]
+        * 训练过程中，需要输入图片以及对应的 targets: {boxes, labels}，边界框表示为 (x1, y1, x2, y2)，是左上角和右下角的坐标
+        * 使用模型进行推断时，只需要输入图片，输出预测结果 {boxes, labels, scores}
+    * args
+        * backbone(nn.Module)，输出特征图，属性 out_channels 对应输出特征的通道数
+        * num_classes(int)，输出的类别总数，包括背景类
+        * min_size(int), max_size(int)，划定了输入 backbone 的大小范围
+        * image_mean (Tuple[float, float, float]), image_std (Tuple[float, float, float])，用于输入图片归一化，指定了归一化处理后的均值和偏差值
+        * rpn_anchor_generator (AnchorGenerator)，根据特征图生成先验框
+        * rpn_head (nn.Module)，计算先验框的分类（有无物体）和偏移量
+        * rpn_pre_nms_top_n_train (int), rpn_pre_nms_top_n_test (int)，训练/测试中，应用NMS前，保留的提议数量
+        * rpn_post_nms_top_n_train (int), rpn_post_nms_top_n_test (int)，训练/测试中，应用NMS后，保留的提议数量
+        * rpn_nms_thresh (float)，postprocess 中，应用NMS时采取的阈值
+        * rpn_fg_iou_thresh (float), rpn_bg_iou_thresh (float)，anchor 认定为 positive/negative 时，和真实边框的最小/大交并比
+        * rpn_batch_size_per_image (int)，训练RPN时，每个mini-batch的先验框数量
+        * rpn_positive_fraction (float)，每个mini-batch中，分类为正的比例
+        * box_roi_pool (MultiScaleRoIAlign)，根据边界框剪裁和缩放特征图
+        * box_head (nn.Module)，输入剪裁好的特征图
+        * box_predictor (nn.Module)，输出分类和回归结果
+        * box_score_thresh (float)，筛选提议的置信阈值
+        * box_nms_thresh (float)，做预测时，应用NMS的阈值
+        * box_detections_per_img (int)，每张图片能做出的最大检测数量
+        * box_fg_iou_thresh (float), box_bg_iou_thresh (float)，proposal 认定为 positive/negative时，与真实边框的最小/大交并比
+        * box_batch_size_per_image (int)
+        * box_positive_fraction (float)
+        * bbox_reg_weights (Tuple[float, float, float, float])，边界框编码/解码的权重
+3. Faster R-CNN 重要设计    
+    * backbone 默认采取 ResNet50 + FPN
+    * rpn_anchor_generator -> AnchorGenerator
+        * grid_anchors()
+    * rpn_head
+    * RegionProposalNetwork
+    * roi_heads
+    * MultiScaleRoIAlign -> roi_pooling
+    * TwoMLPHead
