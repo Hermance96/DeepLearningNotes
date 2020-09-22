@@ -6,6 +6,7 @@
 3. Keras[学习](notes/Keras.md)
 4. Tensorflow[学习](notes/Tensorflow.md)
 5. Pytorch[学习](notes/Pytorch.md)
+6. 图像分类模型[学习](notes/Imagecls.md)
 
 ## 物体检测论文
 * [YOLO](notes/yolo.md)
